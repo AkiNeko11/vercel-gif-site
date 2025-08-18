@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>图片旋转 GIF 生成器</title>
+	<style>
+		* { box-sizing: border-box; }
+		
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+			margin: 0;
+			padding: 20px;
+			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+			min-height: 100vh;
+			color: #333;
+		}
+		
+		.container {
+			max-width: 800px;
+			margin: 0 auto;
+			background: rgba(255, 255, 255, 0.95);
+			border-radius: 20px;
+			padding: 40px;
+			box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+			backdrop-filter: blur(10px);
+		}
+		
+		h1 {
+			text-align: center;
+			color: #2d3748;
+			margin-bottom: 40px;
+			font-size: 2.5rem;
+			background: linear-gradient(135deg, #667eea, #764ba2);
+			-webkit-background-clip: text;
+			-webkit-text-fill-color: transparent;
+			background-clip: text;
+		}
+		
+		.upload-area {
+			border: 3px dashed #cbd5e0;
+			border-radius: 15px;
+			padding: 40px;
+			text-align: center;
+			margin-bottom: 30px;
+			transition: all 0.3s ease;
+			cursor: pointer;
+			position: relative;
+			overflow: hidden;
+		}
+		
+		.upload-area:hover {
+			border-color: #667eea;
+			background: rgba(102, 126, 234, 0.05);
+		}
+		
+		.upload-area.dragover {
+			border-color: #667eea;
+			background: rgba(102, 126, 234, 0.1);
+			transform: scale(1.02);
+		}
+		
+		#file {
+			display: none;
+		}
+		
+		.upload-text {
+			font-size: 1.1rem;
+			color: #4a5568;
+			margin-bottom: 10px;
+		}
+		
+		.upload-hint {
+			font-size: 0.9rem;
+			color: #718096;
+		}
+		
+		.controls {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+			gap: 20px;
+			margin-bottom: 30px;
+		}
+		
+		.control-group {
+			background: #f7fafc;
+			padding: 20px;
+			border-radius: 12px;
+			border: 1px solid #e2e8f0;
+		}
+		
+		.control-group label {
+			display: block;
+			font-weight: 600;
+			color: #2d3748;
+			margin-bottom: 8px;
+			font-size: 0.9rem;
+		}
+		
+		.control-group input[type="number"] {
+			width: 100%;
+			padding: 12px 16px;
+			border: 2px solid #e2e8f0;
+			border-radius: 8px;
+			font-size: 1rem;
+			transition: border-color 0.3s ease;
+		}
+		
+		.control-group input[type="number"]:focus {
+			outline: none;
+			border-color: #667eea;
+			box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+		}
+		
+		.generate-btn {
+			width: 100%;
+			padding: 16px 32px;
+			background: linear-gradient(135deg, #667eea, #764ba2);
+			color: white;
+			border: none;
+			border-radius: 12px;
+			font-size: 1.1rem;
+			font-weight: 600;
+			cursor: pointer;
+			transition: all 0.3s ease;
+			margin-bottom: 20px;
+			position: relative;
+			overflow: hidden;
+		}
+		
+		.generate-btn:hover:not(:disabled) {
+			transform: translateY(-2px);
+			box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+		}
+		
+		.generate-btn:disabled {
+			background: #cbd5e0;
+			cursor: not-allowed;
+			transform: none;
+			box-shadow: none;
+		}
+		
+		.generate-btn.loading {
+			background: #a0aec0;
+			cursor: wait;
+		}
+		
+		.generate-btn.loading::after {
+			content: '';
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			width: 20px;
+			height: 20px;
+			margin: -10px 0 0 -10px;
+			border: 2px solid transparent;
+			border-top: 2px solid white;
+			border-radius: 50%;
+			animation: spin 1s linear infinite;
+		}
+		
+		@keyframes spin {
+			to { transform: rotate(360deg); }
+		}
+		
+		#status {
+			text-align: center;
+			font-size: 1.1rem;
+			color: #4a5568;
+			margin-bottom: 20px;
+			min-height: 1.5em;
+		}
+		
+		#result {
+			text-align: center;
+		}
+		
+		#result img {
+			max-width: 100%;
+			border-radius: 12px;
+			box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+			margin-bottom: 20px;
+			animation: fadeIn 0.5s ease;
+		}
+		
+		@keyframes fadeIn {
+			from { opacity: 0; transform: translateY(20px); }
+			to { opacity: 1; transform: translateY(0); }
+		}
+		
+		.download-btn {
+			display: inline-block;
+			padding: 12px 24px;
+			background: #48bb78;
+			color: white;
+			text-decoration: none;
+			border-radius: 8px;
+			font-weight: 600;
+			transition: all 0.3s ease;
+		}
+		
+		.download-btn:hover {
+			background: #38a169;
+			transform: translateY(-1px);
+			box-shadow: 0 5px 15px rgba(72, 187, 120, 0.4);
+		}
+		
+		.file-info {
+			background: #e6fffa;
+			border: 1px solid #81e6d9;
+			border-radius: 8px;
+			padding: 12px 16px;
+			margin-top: 15px;
+			color: #2d3748;
+			font-size: 0.9rem;
+		}
+		
+		@media (max-width: 640px) {
+			.container { padding: 20px; }
+			h1 { font-size: 2rem; }
+			.controls { grid-template-columns: 1fr; }
+		}
+	</style>
+</head>
+<body>
+	<div class="container">
+		<h1> 图片旋转 GIF 生成器</h1>
+		
+		<div class="upload-area" id="uploadArea">
+			<div class="upload-text"> 点击选择图片或拖拽到此处</div>
+			<div class="upload-hint">支持 JPG、PNG、GIF 等格式，建议大小 < 10MB</div>
+			<input type="file" id="file" accept="image/*" />
+		</div>
+		
+		<div class="controls">
+			<div class="control-group">
+				<label for="step"> 每帧旋转角度</label>
+				<input type="number" id="step" value="10" min="1" max="180" />
+				<small style="color: #718096; margin-top: 5px; display: block;">角度越小，动画越流畅</small>
+			</div>
+			
+			<div class="control-group">
+				<label for="delay"> 帧间延时 (毫秒)</label>
+				<input type="number" id="delay" value="40" min="10" step="10" />
+				<small style="color: #718096; margin-top: 5px; display: block;">数值越小，转动越快</small>
+			</div>
+			
+			<div class="control-group">
+				<label for="size"> 输出尺寸 (像素)</label>
+				<input type="number" id="size" value="512" min="64" step="16" />
+				<small style="color: #718096; margin-top: 5px; display: block;">正方形输出，建议 512px</small>
+			</div>
+
+			<!-- 在控件区域中增加旋转方向选择 -->
+			<div class="control-group">
+				<label for="direction"> 旋转方向</label>
+				<select id="direction" style="width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem;">
+					<option value="right">顺时针 </option>
+					<option value="left">逆时针 </option>
+				</select>
+				<small style="color: #718096; margin-top: 5px; display: block;">选择图片旋转的方向</small>
+			</div>
+		</div>
+		
+		<button class="generate-btn" id="go" disabled> 生成旋转 GIF</button>
+		
+		<div id="status"></div>
+		<div id="result"></div>
+	</div>
+
+	<script>
+		const fileInput = document.getElementById('file');
+		const uploadArea = document.getElementById('uploadArea');
+		const goBtn = document.getElementById('go');
+		const statusEl = document.getElementById('status');
+		const result = document.getElementById('result');
+
+		let file;
+
+		// 上传区域点击事件
+		uploadArea.addEventListener('click', () => fileInput.click());
+
+		// 拖拽功能
+		uploadArea.addEventListener('dragover', (e) => {
+			e.preventDefault();
+			uploadArea.classList.add('dragover');
+		});
+
+		uploadArea.addEventListener('dragleave', () => {
+			uploadArea.classList.remove('dragover');
+		});
+
+		uploadArea.addEventListener('drop', (e) => {
+			e.preventDefault();
+			uploadArea.classList.remove('dragover');
+			const files = e.dataTransfer.files;
+			if (files.length > 0) {
+				fileInput.files = files;
+				handleFileSelect();
+			}
+		});
+
+		// 文件选择处理
+		fileInput.addEventListener('change', handleFileSelect);
+
+		function handleFileSelect() {
+			file = fileInput.files[0];
+			if (!file) {
+				goBtn.disabled = true;
+				uploadArea.innerHTML = `
+					<div class="upload-text"> 点击选择图片或拖拽到此处</div>
+					<div class="upload-hint">支持 JPG、PNG、GIF 等格式，建议大小 < 10MB</div>
+				`;
+				return;
+			}
+
+			goBtn.disabled = false;
+			result.innerHTML = '';
+			statusEl.textContent = '';
+
+			// 显示文件信息
+			const fileSize = (file.size / 1024 / 1024).toFixed(2);
+			uploadArea.innerHTML = `
+				<div class="upload-text"> 已选择文件</div>
+				<div class="file-info">
+					<strong>${file.name}</strong><br>
+					大小: ${fileSize} MB | 类型: ${file.type}
+				</div>
+			`;
+		}
+
+		// 生成 GIF
+		goBtn.addEventListener('click', async () => {
+			if (!file) return;
+			
+			goBtn.disabled = true;
+			goBtn.classList.add('loading');
+			goBtn.textContent = '生成中...';
+			statusEl.textContent = ' 正在上传并生成 GIF，请稍候...';
+			result.innerHTML = '';
+
+			const fd = new FormData();
+			fd.append('file', file);
+			fd.append('step', document.getElementById('step').value);
+			fd.append('delay', document.getElementById('delay').value);
+			fd.append('size', document.getElementById('size').value);
+			fd.append('direction', document.getElementById('direction').value); // 添加旋转方向
+
+			try {
+				const res = await fetch('/api/rotate_gif', { method: 'POST', body: fd });
+				if (!res.ok) {
+					const txt = await res.text();
+					throw new Error(`服务端错误(${res.status}): ${txt}`);
+				}
+				
+				const blob = await res.blob();
+				const url = URL.createObjectURL(blob);
+				const img = document.createElement('img');
+				img.src = url;
+				img.alt = '生成的旋转 GIF';
+				
+				const downloadBtn = document.createElement('a');
+				downloadBtn.href = url;
+				downloadBtn.download = 'rotated.gif';
+				downloadBtn.className = 'download-btn';
+				downloadBtn.textContent = ' 下载 GIF';
+				
+				result.appendChild(img);
+				result.appendChild(document.createElement('br'));
+				result.appendChild(downloadBtn);
+				
+				statusEl.textContent = ' 生成完成！';
+			} catch (err) {
+				statusEl.textContent = `错误！ ${err.message}`;
+			} finally {
+				goBtn.disabled = false;
+				goBtn.classList.remove('loading');
+				goBtn.textContent = ' 生成旋转 GIF';
+			}
+		});
+	</script>
+</body>
+</html>

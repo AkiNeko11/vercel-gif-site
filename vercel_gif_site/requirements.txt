@@ -1,0 +1,4 @@
+# requirements.txt
+fastapi==0.116.*
+pillow==11.*
+python-multipart==0.0.20
