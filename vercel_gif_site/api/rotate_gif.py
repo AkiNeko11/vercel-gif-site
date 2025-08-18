@@ -5,12 +5,11 @@ from PIL import Image
 import io
 import math
 
-app = FastAPI()
+# 移除 FastAPI app 实例，改用 Vercel 函数处理器
+# app = FastAPI()
 
 def rgba_to_p_with_transparency(image):
-    
-    # 将RGBA图像转换为P模式，保持透明度
-   
+  
     # 将透明像素设为特定颜色，然后转换为P模式
     alpha = image.split()[-1]
     image = image.convert('RGB').convert('P', palette=Image.ADAPTIVE, colors=255)
@@ -24,22 +23,23 @@ def rgba_to_p_with_transparency(image):
 
 def calculate_expanded_size(width, height):
     
-    # 计算能完全容纳旋转图片的画布尺寸
-    
-    # 使用图片对角线长度作为新画布的边长
+    #计算能完全容纳旋转图片的画布尺寸
+    #使用图片对角线长度作为新画布的边长
     diagonal = math.sqrt(width**2 + height**2)
     return int(math.ceil(diagonal))
 
+# Vercel 函数处理器
+app = FastAPI()
+
 @app.post("/")
-async def rotate_gif(
+async def handler(
     file: UploadFile = File(...),
     step: int = Form(10),
     size: int = Form(512),
     delay: int = Form(40),
-    direction: str = Form("right")  # 新增：旋转方向，"right"(顺时针) 或 "left"(逆时针)
+    direction: str = Form("right")  # 旋转方向，"right"(顺时针) 或 "left"(逆时针)
 ):
-    
-    # 文件大小限制
+    #文件大小限制
     MAX_FILE_MB = 12
     data = await file.read()
     if len(data) > MAX_FILE_MB * 1024 * 1024:
