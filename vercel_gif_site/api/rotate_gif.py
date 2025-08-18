@@ -5,6 +5,7 @@ from PIL import Image
 import io
 import math
 import json
+import re
 
 def rgba_to_p_with_transparency(image):
    
@@ -20,9 +21,6 @@ def rgba_to_p_with_transparency(image):
     return image
 
 def calculate_expanded_size(width, height):
-     
-     #计算能完全容纳旋转图片的画布尺寸
-     #使用图片对角线长度作为新画布的边长
     diagonal = math.sqrt(width**2 + height**2)
     return int(math.ceil(diagonal))
 
@@ -96,51 +94,68 @@ def process_gif(file_data, step=10, size=512, delay=40, direction="right"):
         
         return buf.getvalue()
     except Exception as e:
-        raise Exception(f"处理图片失败: {str(e)}")
+        raise Exception(f"Image processing failed: {str(e)}")
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             # 解析 multipart/form-data
-            content_length = int(self.headers['Content-Length'])
+            content_length = int(self.headers.get('Content-Length', 0))
+            if content_length == 0:
+                self.send_error(400, "No content")
+                return
+                
             post_data = self.rfile.read(content_length)
             
-            # 简单的 multipart 解析
-            boundary = self.headers['Content-Type'].split('boundary=')[1]
-            parts = post_data.split(f'--{boundary}'.encode())
+            # 解析 Content-Type 获取 boundary
+            content_type = self.headers.get('Content-Type', '')
+            if 'boundary=' not in content_type:
+                self.send_error(400, "Invalid content type")
+                return
+                
+            boundary = content_type.split('boundary=')[1].strip()
+            
+            # 分割数据
+            boundary_bytes = f'--{boundary}'.encode()
+            parts = post_data.split(boundary_bytes)
             
             file_data = None
             params = {}
             
             for part in parts:
-                if b'Content-Disposition' in part:
-                    lines = part.split(b'\r\n')
-                    headers = {}
-                    data_start = 0
+                if len(part) < 10:  # 跳过太短的部分
+                    continue
                     
-                    for i, line in enumerate(lines):
-                        if line == b'':
-                            data_start = i + 1
-                            break
-                        if b':' in line:
-                            key, value = line.decode().split(':', 1)
-                            headers[key.strip()] = value.strip()
+                # 查找 Content-Disposition 头
+                if b'Content-Disposition' not in part:
+                    continue
+                
+                # 分离头部和数据
+                header_end = part.find(b'\r\n\r\n')
+                if header_end == -1:
+                    continue
                     
-                    if 'Content-Disposition' in headers:
-                        disp = headers['Content-Disposition']
-                        if 'name="file"' in disp:
-                            file_data = b'\r\n'.join(lines[data_start:]).rstrip(b'\r\n')
-                        else:
-                            # 提取参数名
-                            import re
-                            name_match = re.search(r'name="([^"]+)"', disp)
-                            if name_match:
-                                param_name = name_match.group(1)
-                                param_value = b'\r\n'.join(lines[data_start:]).rstrip(b'\r\n').decode()
-                                params[param_name] = param_value
+                headers_section = part[:header_end].decode('utf-8', errors='ignore')
+                data_section = part[header_end + 4:]
+                
+                # 移除末尾的 \r\n
+                if data_section.endswith(b'\r\n'):
+                    data_section = data_section[:-2]
+                
+                # 解析 Content-Disposition
+                disp_match = re.search(r'Content-Disposition: form-data; name="([^"]+)"', headers_section)
+                if not disp_match:
+                    continue
+                    
+                field_name = disp_match.group(1)
+                
+                if field_name == 'file':
+                    file_data = data_section
+                else:
+                    params[field_name] = data_section.decode('utf-8', errors='ignore')
             
-            if not file_data:
-                self.send_error(400, "没有找到文件数据")
+            if not file_data or len(file_data) == 0:
+                self.send_error(400, "No file data found")
                 return
             
             # 处理 GIF
@@ -156,12 +171,14 @@ class handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-Type', 'image/gif')
             self.send_header('Content-Length', str(len(gif_data)))
+            self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(gif_data)
             
         except Exception as e:
+            error_msg = str(e).encode('utf-8', errors='replace')
             self.send_response(500)
             self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(error_msg)))
             self.end_headers()
-            error_response = json.dumps({"error": str(e)}).encode()
-            self.wfile.write(error_response)
+            self.wfile.write(error_msg)
